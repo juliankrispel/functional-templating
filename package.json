@@ -1,0 +1,38 @@
+{
+  "name": "func_temp",
+  "version": "0.0.1",
+  "description": "",
+  "main": "main.js",
+  "dependencies": {
+    "lodash": "~2.4.1",
+    "coffeeify": "~0.6.0",
+    "tiny-rx": "git://github.com/juliankrispel/tiny-rx",
+    "keycode": "~0.3.0",
+    "immutable": "~2.0.3",
+    "multimethod": "~0.1.0",
+    "literate-programming": "~0.8.1"
+  },
+  "devDependencies": {
+    "gulp": "~3.6.2",
+    "gulp-watch": "~0.5.3",
+    "gulp-uglify": "~0.2.1",
+    "gulp-rename": "~1.2.0",
+    "gulp-util": "~2.2.14",
+    "gulp-plumber": "~0.5.6",
+    "gulp-browserify": "~0.5.0",
+    "gulp-connect": "~2.0.5"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/juliankrispel/tiny-rx.git"
+  },
+  "author": "Julian Krispel-Samsel <juliankrispel@yahoo.de> (http://goodafternoon.co/)",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/juliankrispel/tiny-rx/issues"
+  },
+  "homepage": "https://github.com/juliankrispel/tiny-rx"
+}
