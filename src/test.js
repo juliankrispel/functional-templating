@@ -10,17 +10,22 @@ var project = {
 
 
 // There are two phases of creating a ui/template
-// Number one is construction
+// Number one is construction. We are using a set of
+// functions to return a composite structure.
+// Rendering can be initiated by simply executing the
+// construct.
 
 var appConstruct = $.div(
-    $.data(project),
-    $.h1('This is a list of Tasks'),
-    $.h2($.data()),
+    $.h1($.data('title')),
+    $.h2($.data('subTitle')),
     $.ul(
-        $.each()
+        $.data('tasks'),
+        $.each(
+            $.li()
+        )
     )
-)
+);
 
 // Number two is execution
-app();
+app($element, data);
 

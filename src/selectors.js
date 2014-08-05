@@ -1,7 +1,9 @@
 var ids = document.querySelectorAll('[id]');
+var u = require('./util');
 var selectors = {};
-for( var i = 0; i < ids.length; i++ ){
-    selectors[ids[i].id] = ids[i];
-}
+
+u.each(ids, function(el){
+    selectors[el.id] = el;
+});
 
 module.exports = selectors;

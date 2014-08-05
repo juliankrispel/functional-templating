@@ -5457,56 +5457,81 @@ var Immutable = require('immutable');
 var u = require('./util');
 var multimethod = require('multimethod');
 
-window.u = u;
+var ElementNode = require('./logicNode').ElementNode;
+var AttributeNode = require('./logicNode').AttributeNode;
+var HtmlObjectAttributeNode = require('./logicNode').HtmlObjectAttributeNode;
+var loopComposites = require('./logicNode')._loopComposites;
 
-//This is how it should work
+var obj = {};
 
 
+
+var htmlElements = ['h1','h2','h3','h4','h5','h6','p','a','body','main','div','data','address','section','nav','article','aside','pre','hr','blockquote','ol','ul','li','dl','dt','dd','figure','figcaption','em','strong','small','s','cite','q','dfn','abbr','time','code','var','samp','kbd','sub','sup','i','b','u','mark','bdo','span','br','ins','del','img','iframe','embed','object','param','video','audio','source','track','canvas','map','area','svg','math','table','thead','th','tbody','tr','td','tfoot','colgroup','caption','col','form','fieldset','legend','label','input','button','select','datalist','optgroup','option','textarea','keygen','output','progress','meter','script','template','noscript','head','title','base','link','meta','style'];
+
+var htmlAttributes = ['id','href','alt','rel','action','width','height','class','max','maxlength','min','readonly','autocomplete','disabled','name','rowspan','src','title'];
+
+var htmlObjectAttributes = ['textContent', 'innerHTML'];
+
+var obj = {
+    filterData: function(accessor){
+        var path = accessor.split('.');
+        return function($parent, data){
+            var dataCache = data;
+            u.each(path, function(val){
+                dataCache = dataCache[val];
+            });
+            return dataCache;
+        };
+    },
+
+    each: function(){
+        var args = arguments;
+        return function($parent, data){
+            console.log($parent, data, args);
+            u.assertType(data, 'array');
+            u.each(data, function(val){
+                loopComposites($parent, args, val);
+            });
+            return data;
+        };
+    },
+};
+
+var generate = function(classObject, name){
+    return function(){ return new classObject(name, arguments); };
+};
+
+u.each(htmlElements, function(val){
+    obj[val] = generate(ElementNode, val);
+});
+
+u.each(htmlAttributes, function(val){
+    obj[val] = generate(AttributeNode, val);
+});
+
+u.each(htmlObjectAttributes, function(val){
+    obj[val] = generate(HtmlObjectAttributeNode, val);
+});
 
 var _elGenerator = function(elName){
     return function(){
-        var args = arguments;
-        var self = this;
-        var data;
-
-        for(var i = 0; i < arguments; i++){
-            if(arguments[i] instanceof Immutable.constructor){
-                data = arguments[i];
-            }
-        }
-
-        return function($parent){
-            if(self.$el === undefined){
-                self.$el = document.createElement(elName);
-                $parent.appendChild(self.$el);
-            }
-
-            for(var i = 0; i < args.length; i++){
-                if(u.isFunction(args[i])){
-                    args[i](self.$el);
-                }else if(u.isString(args[i]) && args.text === undefined){
-                    self.$el.textContent += args[i];
-                }
-            }
-
-        };
+        return new ElementNode(elName, arguments);
     };
 };
 
-var obj = {};
-var htmlElements = ['h1','h2','h3','h4','h5','h6','p','a','body','main','div','address','section','nav','article','aside','pre','hr','blockquote','ol','ul','li','dl','dt','dd','figure','figcaption','em','strong','small','s','cite','q','dfn','abbr','data','time','code','var','samp','kbd','sub','sup','i','b','u','mark','bdo','span','br','ins','del','img','iframe','embed','object','param','video','audio','source','track','canvas','map','area','svg','math','table','thead','th','tbody','tr','td','tfoot','colgroup','caption','col','form','fieldset','legend','label','input','button','select','datalist','optgroup','option','textarea','keygen','output','progress','meter','script','template','noscript','head','title','base','link','meta','style'];
-
-var htmlAttributes = [''];
-
-
-var obj = {
-    each: function(data, fn){
-        //data.forEach(function)
-    }
+var _setAttribute = function(attrName){
+    return function(){
+        return new AttributeNode(attrName);
+    };
 };
-for(var i = 0; i < htmlElements.length; i++){
-    obj[htmlElements[i]] = _elGenerator(htmlElements[i]);
-}
+
+var _setObjectAttribute = function(attrName){
+    return function(){
+        return new AttributeNode(attrName);
+    };
+};
+
+
 
 module.exports = obj;
 
@@ -5542,13 +5567,112 @@ module.exports = obj;
 //};
 
 }).call(this,require("VCmEsw"),typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer,arguments[3],arguments[4],arguments[5],arguments[6],"/dom.js","/")
-},{"./util":20,"VCmEsw":4,"buffer":1,"immutable":5,"multimethod":14}],18:[function(require,module,exports){
+},{"./logicNode":18,"./util":21,"VCmEsw":4,"buffer":1,"immutable":5,"multimethod":14}],18:[function(require,module,exports){
+(function (process,global,Buffer,__argument0,__argument1,__argument2,__argument3,__filename,__dirname){
+var u = require('./util');
+
+var loopComposites = function($el, args, data){
+    u.each(args, function(val){
+        if(u.isFunction(val.render)){
+            data = val.render($el, data);
+        }else if(u.isFunction(val)){
+            data = val($el, data);
+        }else if(u.isString(val) && args.text === undefined){
+            $el.textContent = val;
+        }
+    });
+    return data;
+};
+
+var baseInit = function(){
+    return function(elName, args){
+        if(elName !== undefined){
+            this.elName = elName;
+        }
+        this.args = args;
+        this.isRendered = false;
+    };
+};
+
+var BaseNode = baseInit();
+
+BaseNode.extend = function(extension){
+    var newClass = baseInit();
+
+    u.each(this, function(val, key){
+        newClass[key] = val;
+    });
+
+    u.each(this.prototype, function(val, key){
+        newClass.prototype[key] = val;
+    });
+
+    if(extension !== undefined){
+        u.each(extension, function(val, key){
+            newClass.prototype[key] = val;
+        });
+    }
+    return newClass;
+};
+
+var ElementNode = BaseNode.extend({
+    attach: function(){
+        this.$el = document.createElement(this.elName);
+        this.isRendered = true;
+        this.$parent.appendChild(this.$el);
+    },
+
+    detach: function(){
+        this.$el.remove();
+        this.isRendered = false;
+    },
+
+    render: function($parent, data){
+        if(this.isRendered === false){
+            this.$parent = $parent;
+            this.attach();
+        }
+
+        var oldData = data;
+        loopComposites(this.$el, this.args, data);
+        return oldData;
+    }
+});
+
+var AttributeNode = BaseNode.extend({
+    render: function($parent, data){
+        var oldData = data;
+        loopComposites($parent, this.args, data);
+        return oldData;
+    }
+});
+
+
+var HtmlObjectAttributeNode = BaseNode.extend({
+    render: function($parent, data){
+        var value = loopComposites($parent, this.args, data);
+        $parent[this.elName] = value || data;
+        return data;
+    }
+});
+
+module.exports = {
+    ElementNode: ElementNode,
+    AttributeNode: AttributeNode,
+    HtmlObjectAttributeNode: HtmlObjectAttributeNode,
+    _loopComposites: loopComposites
+};
+
+}).call(this,require("VCmEsw"),typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer,arguments[3],arguments[4],arguments[5],arguments[6],"/logicNode.js","/")
+},{"./util":21,"VCmEsw":4,"buffer":1}],19:[function(require,module,exports){
 (function (process,global,Buffer,__argument0,__argument1,__argument2,__argument3,__filename,__dirname){
 var dom = require('./selectors');
 var $ = require('./dom');
 var Immutable = require('immutable');
 
-var tasks = Immutable.fromJS([
+window.t = tasks;
+
+var tasks = [
     {
         name: 'task 1',
         assignee: 'Julian',
@@ -5564,36 +5688,92 @@ var tasks = Immutable.fromJS([
         assignee: 'Andy',
         done: false
     }
+];
 
-]);
+var project = {
+    title: { name: 'This is a list of tasks', link: 'http://google.com' },
+    subTitle: 'By Julian',
+    tasks: tasks
+};
 
-window.t = tasks;
 
-var app = 
-    $.ul(
-    );
+// There are two phases of creating a ui/template
+// Number one is construction. We are using a set of
+// functions to return a composite structure.
+// Rendering can be initiated by simply executing the
+// construct.
+//
 
-app(dom.main);
+
+var list = $.ul(
+    $.filterData('tasks'),
+    $.each(
+        $.li(
+            $.h2($.filterData('name'), $.textContent()),
+            $.h3($.filterData('assignee'), $.textContent()),
+            $.strong($.filterData('done'), $.textContent())
+        )
+    )
+);
+
+var appConstruct = $.div(
+    $.input($.id('taskName')),
+    $.button($.id('addTask')),
+    $.h1($.a(
+        $.textContent($.filterData('title.name')),
+        $.href($.filterData('title.link'))
+    )),
+    list
+);
+
+window.a = appConstruct;
+appConstruct.render(dom.main, project);
 
 window.i = Immutable;
 
 }).call(this,require("VCmEsw"),typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer,arguments[3],arguments[4],arguments[5],arguments[6],"/main.js","/")
-},{"./dom":17,"./selectors":19,"VCmEsw":4,"buffer":1,"immutable":5}],19:[function(require,module,exports){
+},{"./dom":17,"./selectors":20,"VCmEsw":4,"buffer":1,"immutable":5}],20:[function(require,module,exports){
 (function (process,global,Buffer,__argument0,__argument1,__argument2,__argument3,__filename,__dirname){
 var ids = document.querySelectorAll('[id]');
+var u = require('./util');
 var selectors = {};
-for( var i = 0; i < ids.length; i++ ){
-    selectors[ids[i].id] = ids[i];
-}
+
+u.each(ids, function(el){
+    selectors[el.id] = el;
+});
 
 module.exports = selectors;
 
 }).call(this,require("VCmEsw"),typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer,arguments[3],arguments[4],arguments[5],arguments[6],"/selectors.js","/")
-},{"VCmEsw":4,"buffer":1}],20:[function(require,module,exports){
+},{"./util":21,"VCmEsw":4,"buffer":1}],21:[function(require,module,exports){
 (function (process,global,Buffer,__argument0,__argument1,__argument2,__argument3,__filename,__dirname){
 module.exports = {
     toType: function(obj) {
         return ({}).toString.call(obj).match(/\s([a-zA-Z]+)/)[1].toLowerCase();
+    },
+
+    error: function(mess){
+        throw new Error(mess);
+    },
+
+    typeError: function(type){
+        this.error('Invalid Argument Type, should be ' +  type);
+    },
+
+    assertType: function(obj, type){
+        if(!this.isType(obj, type)){
+            this.typeError(type);
+        }
+    },
+
+    assertNotUndefined: function(obj){
+        if(obj === undefined){
+            this.error('Invalid Argument Type, cannot be undefined');
+        }
+    },
+
+    isType: function(obj, string){
+        return this.toType(obj) === string;
     },
 
     isFunction: function(arg){
@@ -5606,8 +5786,25 @@ module.exports = {
 
     isNode: function(arg){
         return arg instanceof Node;
+    },
+
+    each: function(obj, func){
+        this.assertType(func, 'function');
+        this.assertNotUndefined(obj);
+
+        if(obj.forEach){
+            obj.forEach(func);
+        }else if(this.isType(obj, 'array')){
+            for(var i = 0; i < obj.length; i++){
+                func(obj[i], i);
+            }
+        }else{
+            for(var key in obj){
+                func(obj[key], key);
+            }
+        }
     }
 };
 
 }).call(this,require("VCmEsw"),typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer,arguments[3],arguments[4],arguments[5],arguments[6],"/util.js","/")
-},{"VCmEsw":4,"buffer":1}]},{},[18])
+},{"VCmEsw":4,"buffer":1}]},{},[19])

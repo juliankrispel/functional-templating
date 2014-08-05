@@ -2,56 +2,81 @@ var Immutable = require('immutable');
 var u = require('./util');
 var multimethod = require('multimethod');
 
-window.u = u;
+var ElementNode = require('./logicNode').ElementNode;
+var AttributeNode = require('./logicNode').AttributeNode;
+var HtmlObjectAttributeNode = require('./logicNode').HtmlObjectAttributeNode;
+var loopComposites = require('./logicNode')._loopComposites;
 
-//This is how it should work
+var obj = {};
 
 
+
+var htmlElements = ['h1','h2','h3','h4','h5','h6','p','a','body','main','div','data','address','section','nav','article','aside','pre','hr','blockquote','ol','ul','li','dl','dt','dd','figure','figcaption','em','strong','small','s','cite','q','dfn','abbr','time','code','var','samp','kbd','sub','sup','i','b','u','mark','bdo','span','br','ins','del','img','iframe','embed','object','param','video','audio','source','track','canvas','map','area','svg','math','table','thead','th','tbody','tr','td','tfoot','colgroup','caption','col','form','fieldset','legend','label','input','button','select','datalist','optgroup','option','textarea','keygen','output','progress','meter','script','template','noscript','head','title','base','link','meta','style'];
+
+var htmlAttributes = ['id','href','alt','rel','action','width','height','class','max','maxlength','min','readonly','autocomplete','disabled','name','rowspan','src','title'];
+
+var htmlObjectAttributes = ['textContent', 'innerHTML'];
+
+var obj = {
+    filterData: function(accessor){
+        var path = accessor.split('.');
+        return function($parent, data){
+            var dataCache = data;
+            u.each(path, function(val){
+                dataCache = dataCache[val];
+            });
+            return dataCache;
+        };
+    },
+
+    each: function(){
+        var args = arguments;
+        return function($parent, data){
+            console.log($parent, data, args);
+            u.assertType(data, 'array');
+            u.each(data, function(val){
+                loopComposites($parent, args, val);
+            });
+            return data;
+        };
+    },
+};
+
+var generate = function(classObject, name){
+    return function(){ return new classObject(name, arguments); };
+};
+
+u.each(htmlElements, function(val){
+    obj[val] = generate(ElementNode, val);
+});
+
+u.each(htmlAttributes, function(val){
+    obj[val] = generate(AttributeNode, val);
+});
+
+u.each(htmlObjectAttributes, function(val){
+    obj[val] = generate(HtmlObjectAttributeNode, val);
+});
 
 var _elGenerator = function(elName){
     return function(){
-        var args = arguments;
-        var self = this;
-        var data;
-
-        for(var i = 0; i < arguments; i++){
-            if(arguments[i] instanceof Immutable.constructor){
-                data = arguments[i];
-            }
-        }
-
-        return function($parent){
-            if(self.$el === undefined){
-                self.$el = document.createElement(elName);
-                $parent.appendChild(self.$el);
-            }
-
-            for(var i = 0; i < args.length; i++){
-                if(u.isFunction(args[i])){
-                    args[i](self.$el);
-                }else if(u.isString(args[i]) && args.text === undefined){
-                    self.$el.textContent += args[i];
-                }
-            }
-
-        };
+        return new ElementNode(elName, arguments);
     };
 };
 
-var obj = {};
-var htmlElements = ['h1','h2','h3','h4','h5','h6','p','a','body','main','div','address','section','nav','article','aside','pre','hr','blockquote','ol','ul','li','dl','dt','dd','figure','figcaption','em','strong','small','s','cite','q','dfn','abbr','data','time','code','var','samp','kbd','sub','sup','i','b','u','mark','bdo','span','br','ins','del','img','iframe','embed','object','param','video','audio','source','track','canvas','map','area','svg','math','table','thead','th','tbody','tr','td','tfoot','colgroup','caption','col','form','fieldset','legend','label','input','button','select','datalist','optgroup','option','textarea','keygen','output','progress','meter','script','template','noscript','head','title','base','link','meta','style'];
-
-var htmlAttributes = [''];
-
-
-var obj = {
-    each: function(data, fn){
-        //data.forEach(function)
-    }
+var _setAttribute = function(attrName){
+    return function(){
+        return new AttributeNode(attrName);
+    };
 };
-for(var i = 0; i < htmlElements.length; i++){
-    obj[htmlElements[i]] = _elGenerator(htmlElements[i]);
-}
+
+var _setObjectAttribute = function(attrName){
+    return function(){
+        return new AttributeNode(attrName);
+    };
+};
+
+
 
 module.exports = obj;
 
