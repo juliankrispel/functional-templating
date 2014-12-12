@@ -1,13 +1,13 @@
 var u = require('./util');
+window.u = u;
+var Immutable = require('immutable');
 
 var loopComposites = function($el, args, data){
     u.each(args, function(val){
-        if(u.isFunction(val.render)){
-            data = val.render($el, data);
+        if(u.isFunction(val.execute)){
+            data = val.execute($el, data);
         }else if(u.isFunction(val)){
             data = val($el, data);
-        }else if(u.isString(val) && args.text === undefined){
-            $el.textContent = val;
         }
     });
     return data;
@@ -18,21 +18,37 @@ var baseInit = function(){
         if(elName !== undefined){
             this.elName = elName;
         }
-        this.args = args;
+
+        if(u.isString(args.first())){
+            this.hardData = args.first();
+            this.args = args.skip(1);
+        }else{
+            this.args = args;
+        }
+
         this.isRendered = false;
     };
 };
 
 var BaseNode = baseInit();
+BaseNode.prototype.constructor = BaseNode;
 
 BaseNode.extend = function(extension){
+    return extendClass(this, extension);
+};
+
+BaseNode.prototype.copy = function(){
+    return new this.constructor(this.elName, this.args);
+};
+
+var extendClass = function(base, extension){
     var newClass = baseInit();
 
-    u.each(this, function(val, key){
+    u.each(base, function(val, key){
         newClass[key] = val;
     });
 
-    u.each(this.prototype, function(val, key){
+    u.each(base.prototype, function(val, key){
         newClass.prototype[key] = val;
     });
 
@@ -41,6 +57,7 @@ BaseNode.extend = function(extension){
             newClass.prototype[key] = val;
         });
     }
+    newClass.prototype.constructor = newClass;
     return newClass;
 };
 
@@ -56,7 +73,11 @@ var ElementNode = BaseNode.extend({
         this.isRendered = false;
     },
 
-    render: function($parent, data){
+    execute: function($parent, data){
+        if(! data instanceof Immutable.constructor){
+            data = Immutable.fromJS(data);
+        }
+
         if(this.isRendered === false){
             this.$parent = $parent;
             this.attach();
@@ -64,23 +85,26 @@ var ElementNode = BaseNode.extend({
 
         var oldData = data;
         loopComposites(this.$el, this.args, data);
+        this.data = data;
         return oldData;
     }
 });
 
 var AttributeNode = BaseNode.extend({
-    render: function($parent, data){
+    execute: function($parent, data){
         var oldData = data;
-        loopComposites($parent, this.args, data);
+        var value = loopComposites($parent, this.args, data);
+        this.data = data;
+        $parent.setAttribute(this.elName, this.hardData || value || data);
         return oldData;
     }
 });
 
 
 var HtmlObjectAttributeNode = BaseNode.extend({
-    render: function($parent, data){
+    execute: function($parent, data){
         var value = loopComposites($parent, this.args, data);
-        $parent[this.elName] = value || data;
+        $parent[this.elName] = this.hardData || value || data;
         return data;
     }
 });

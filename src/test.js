@@ -29,3 +29,28 @@ var appConstruct = $.div(
 // Number two is execution
 app($element, data);
 
+var o = {
+    title: 'Title',
+    subtitle: 'subtitle'
+}
+
+var Model = function(obj){
+    u.each(obj, function(o){
+
+    });
+};
+
+var m = Model({
+    title: 'hello',
+    subTitle: 'This is the world,
+    tasks: [ { _uid: 'd321e2', val: 'Task1'}, 'Task2']
+});
+
+m.each('tasks',
+    $.li($.textContent())
+)
+
+
+var app = dom.div(
+    dom.h1(m('title'))
+);

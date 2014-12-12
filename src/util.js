@@ -8,13 +8,43 @@ module.exports = {
     },
 
     typeError: function(type){
-        this.error('Invalid Argument Type, should be ' +  type);
+        this.error('Invalid Argument Error: , should be ' +  type);
+    },
+
+    refError: function(msg){
+        this.error('Referrence Error: Object has no member of name ' + msg);
+    },
+
+    uuid: (function() {
+        function s4() {
+            return Math.floor((1 + Math.random()) * 0x10000)
+        .toString(16)
+        .substring(1);
+        }
+        return function() {
+            return s4() + s4() + '-' + s4() + '-' + s4() + '-' +
+        s4() + '-' + s4() + s4() + s4();
+        };
+    })(),
+
+    assertClass: function(obj, classObject){
+        if(!obj instanceof classObject){
+            this.typeError('ElementNode');
+        }
     },
 
     assertType: function(obj, type){
         if(!this.isType(obj, type)){
             this.typeError(type);
         }
+    },
+
+    isUndefined: function(obj){
+        return obj === undefined;
+    },
+
+    isNotUndefined: function(obj){
+        return obj !== undefined;
     },
 
     assertNotUndefined: function(obj){
@@ -33,6 +63,18 @@ module.exports = {
 
     isString: function(arg){
         return this.toType(arg) === 'string';
+    },
+
+    isNumberOrString: function(obj){
+        return this.isString(obj) || this.isNumber(obj);
+    },
+
+    isArray: function(arg){
+        return this.toType(arg) === 'array';
+    },
+
+    isNumber: function(arg){
+        return this.toType(arg) === 'number';
     },
 
     isNode: function(arg){

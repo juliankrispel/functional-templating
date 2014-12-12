@@ -5455,6 +5455,7 @@ module.exports = require('./multimethod');
 (function (process,global,Buffer,__argument0,__argument1,__argument2,__argument3,__filename,__dirname){
 var Immutable = require('immutable');
 var u = require('./util');
+var Model = require('./model');
 var multimethod = require('multimethod');
 
 var ElementNode = require('./logicNode').ElementNode;
@@ -5464,41 +5465,56 @@ var loopComposites = require('./logicNode')._loopComposites;
 
 var obj = {};
 
-
+window.i = Immutable;
 
 var htmlElements = ['h1','h2','h3','h4','h5','h6','p','a','body','main','div','data','address','section','nav','article','aside','pre','hr','blockquote','ol','ul','li','dl','dt','dd','figure','figcaption','em','strong','small','s','cite','q','dfn','abbr','time','code','var','samp','kbd','sub','sup','i','b','u','mark','bdo','span','br','ins','del','img','iframe','embed','object','param','video','audio','source','track','canvas','map','area','svg','math','table','thead','th','tbody','tr','td','tfoot','colgroup','caption','col','form','fieldset','legend','label','input','button','select','datalist','optgroup','option','textarea','keygen','output','progress','meter','script','template','noscript','head','title','base','link','meta','style'];
 
-var htmlAttributes = ['id','href','alt','rel','action','width','height','class','max','maxlength','min','readonly','autocomplete','disabled','name','rowspan','src','title'];
+var htmlAttributes = ['href','alt','rel','action','width','height','class','max','maxlength','min','readonly','autocomplete','disabled','name','rowspan','src','title'];
 
-var htmlObjectAttributes = ['textContent', 'innerHTML'];
+var htmlObjectAttributes = ['id', 'textContent', 'innerHTML'];
 
 var obj = {
-    filterData: function(accessor){
+    get: function(accessor){
         var path = accessor.split('.');
         return function($parent, data){
             var dataCache = data;
-            u.each(path, function(val){
-                dataCache = dataCache[val];
-            });
+            if(data instanceof Immutable.constructor){
+                dataCache = dataCache.getIn(path);
+            }else{
+                u.each(path, function(val){
+                    dataCache = dataCache[val];
+                });
+            }
             return dataCache;
         };
     },
 
-    each: function(){
-        var args = arguments;
+    each: function(elNode){
+        u.assertClass(elNode, ElementNode);
+        var childNodes;
+
         return function($parent, data){
-            console.log($parent, data, args);
-            u.assertType(data, 'array');
-            u.each(data, function(val){
-                loopComposites($parent, args, val);
+            childNodes = data.map(function(o){
+                var node = elNode.copy();
+                node.data = o;
+                return node;
             });
+
+            childNodes.forEach(function(node){
+                node.execute($parent, node.data);
+            });
+
+            //
+//            u.each(data, function(val){
+//                loopComposites($parent, args, val);
+//            });
             return data;
         };
     },
 };
 
 var generate = function(classObject, name){
-    return function(){ return new classObject(name, arguments); };
+    return function(){ return new classObject(name, Immutable.fromJS(arguments)); };
 };
 
 u.each(htmlElements, function(val){
@@ -5513,72 +5529,21 @@ u.each(htmlObjectAttributes, function(val){
     obj[val] = generate(HtmlObjectAttributeNode, val);
 });
 
-var _elGenerator = function(elName){
-    return function(){
-        return new ElementNode(elName, arguments);
-    };
-};
-
-var _setAttribute = function(attrName){
-    return function(){
-        return new AttributeNode(attrName);
-    };
-};
-
-var _setObjectAttribute = function(attrName){
-    return function(){
-        return new AttributeNode(attrName);
-    };
-};
-
-
-
 module.exports = obj;
 
-//module.exports = {
-//    div: function(){
-//
-//        var el = document.createElement('div');
-//        var data;
-//        var funcs = [];
-//
-//        for(var i = 0; i < arguments.length; i++){
-//            var arg = arguments[i];
-//            if(!u.isFunction(arg) && data === undefined){
-//                data = arg;
-//            }else{
-//                funcs.push(arg);
-//            }
-//        }
-//
-//
-//        return function(){
-//            for(var i = 0; i < arguments.length; i++){
-//                var arg = arguments[i];
-//                if(arg instanceof Node){
-//                    arg.appendChild(el);
-//                }
-//            }
-//            for(var i = 0; i < funcs.length; i++){
-//                funcs[i]()
-//            }
-//        };
-//    }
-//};
-
 }).call(this,require("VCmEsw"),typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer,arguments[3],arguments[4],arguments[5],arguments[6],"/dom.js","/")
-},{"./logicNode":18,"./util":21,"VCmEsw":4,"buffer":1,"immutable":5,"multimethod":14}],18:[function(require,module,exports){
+},{"./logicNode":18,"./model":20,"./util":22,"VCmEsw":4,"buffer":1,"immutable":5,"multimethod":14}],18:[function(require,module,exports){
 (function (process,global,Buffer,__argument0,__argument1,__argument2,__argument3,__filename,__dirname){
 var u = require('./util');
+window.u = u;
+var Immutable = require('immutable');
 
 var loopComposites = function($el, args, data){
     u.each(args, function(val){
-        if(u.isFunction(val.render)){
-            data = val.render($el, data);
+        if(u.isFunction(val.execute)){
+            data = val.execute($el, data);
         }else if(u.isFunction(val)){
             data = val($el, data);
-        }else if(u.isString(val) && args.text === undefined){
-            $el.textContent = val;
         }
     });
     return data;
@@ -5589,21 +5554,37 @@ var baseInit = function(){
         if(elName !== undefined){
             this.elName = elName;
         }
-        this.args = args;
+
+        if(u.isString(args.first())){
+            this.hardData = args.first();
+            this.args = args.skip(1);
+        }else{
+            this.args = args;
+        }
+
         this.isRendered = false;
     };
 };
 
 var BaseNode = baseInit();
+BaseNode.prototype.constructor = BaseNode;
 
 BaseNode.extend = function(extension){
+    return extendClass(this, extension);
+};
+
+BaseNode.prototype.copy = function(){
+    return new this.constructor(this.elName, this.args);
+};
+
+var extendClass = function(base, extension){
     var newClass = baseInit();
 
-    u.each(this, function(val, key){
+    u.each(base, function(val, key){
         newClass[key] = val;
     });
 
-    u.each(this.prototype, function(val, key){
+    u.each(base.prototype, function(val, key){
         newClass.prototype[key] = val;
     });
 
@@ -5612,6 +5593,7 @@ BaseNode.extend = function(extension){
             newClass.prototype[key] = val;
         });
     }
+    newClass.prototype.constructor = newClass;
     return newClass;
 };
 
@@ -5627,7 +5609,11 @@ var ElementNode = BaseNode.extend({
         this.isRendered = false;
     },
 
-    render: function($parent, data){
+    execute: function($parent, data){
+        if(! data instanceof Immutable.constructor){
+            data = Immutable.fromJS(data);
+        }
+
         if(this.isRendered === false){
             this.$parent = $parent;
             this.attach();
@@ -5635,23 +5621,26 @@ var ElementNode = BaseNode.extend({
 
         var oldData = data;
         loopComposites(this.$el, this.args, data);
+        this.data = data;
         return oldData;
     }
 });
 
 var AttributeNode = BaseNode.extend({
-    render: function($parent, data){
+    execute: function($parent, data){
         var oldData = data;
-        loopComposites($parent, this.args, data);
+        var value = loopComposites($parent, this.args, data);
+        this.data = data;
+        $parent.setAttribute(this.elName, this.hardData || value || data);
         return oldData;
     }
 });
 
 
 var HtmlObjectAttributeNode = BaseNode.extend({
-    render: function($parent, data){
+    execute: function($parent, data){
         var value = loopComposites($parent, this.args, data);
-        $parent[this.elName] = value || data;
+        $parent[this.elName] = this.hardData || value || data;
         return data;
     }
 });
@@ -5664,75 +5653,268 @@ module.exports = {
 };
 
 }).call(this,require("VCmEsw"),typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer,arguments[3],arguments[4],arguments[5],arguments[6],"/logicNode.js","/")
-},{"./util":21,"VCmEsw":4,"buffer":1}],19:[function(require,module,exports){
+},{"./util":22,"VCmEsw":4,"buffer":1,"immutable":5}],19:[function(require,module,exports){
 (function (process,global,Buffer,__argument0,__argument1,__argument2,__argument3,__filename,__dirname){
 var dom = require('./selectors');
 var $ = require('./dom');
 var Immutable = require('immutable');
+var Model = require('./model');
 
-window.t = tasks;
 
-var tasks = [
-    {
-        name: 'task 1',
-        assignee: 'Julian',
-        done: true
-    },
-    {
-        name: 'task 2',
-        assignee: 'Mike',
-        done: false
-    },
-    {
-        name: 'task 3',
-        assignee: 'Andy',
-        done: false
-    }
-];
+var m = new Model({
+    tasks: [
+        {title: 'Do chorse', assignee: 'Julian'},
+        {title: 'Do washing', assignee: 'Julian'},
+        {title: 'Do homework', assignee: 'Julian'}
+    ]
+});
 
-var project = {
-    title: { name: 'This is a list of tasks', link: 'http://google.com' },
-    subTitle: 'By Julian',
-    tasks: tasks
+var div = function(bind){
+    return function($parent){
+        var self = this;
+        this.el = document.createElement('div');
+        $parent.appendChild(this.el);
+
+        bind(function(signal, val){
+            self.el.textContent = val;
+        },function(data){
+            self.el.textContent = data;
+        });
+    };
 };
 
+var app = div(m.bind(['tasks', '0', 'assignee']));
 
-// There are two phases of creating a ui/template
-// Number one is construction. We are using a set of
-// functions to return a composite structure.
-// Rendering can be initiated by simply executing the
-// construct.
+setTimeout(function(){
+    m.update(['tasks', '0', 'assignee'], 'Mike');
+}, 1000);
+
+app(dom.main);
+
+//var tasks = {
+//    '0': {
+//        name: 'task 1',
+//        assignee: 'Julian',
+//        done: true
+//    },
+//    '1': {
+//        name: 'task 2',
+//        assignee: 'Mike',
+//        done: false
+//    },
+//    '2': {
+//        name: 'task 3',
+//        assignee: 'Andy',
+//        done: false
+//    }
+//};
 //
+//var project = Immutable.fromJS({
+//    title: { name: 'This is a list of tasks', link: 'http://google.com' },
+//    subTitle: 'By Julian',
+//    tasks: tasks
+//});
+//
+//
+//// There are two phases of creating a ui/template
+//// Number one is construction. We are using a set of
+//// functions to return a composite structure.
+//// Rendering can be initiated by simply executing the
+//// construct.
+////
+//
+//var list = $.ul(
+//    $.get('tasks'),
+//    $.each(
+//        $.li(
+//            $.h2($.get('name'), $.textContent()),
+//            $.h3($.get('assignee'), $.textContent()),
+//            $.strong($.get('done'), $.textContent())
+//        )
+//    )
+//);
+//
+//var appConstruct = $.div(
+//    $.input($.id('taskName')),
+//    $.button(
+//        $.id('addTask'), 
+//        $.textContent('Add a Task')
+//    ),
+//    $.h1($.a(
+//        $.textContent($.get('title.name')),
+//        $.href($.get('title.link'))
+//    )),
+//    list
+//);
+//
+//appConstruct.execute(dom.main, project);
 
-
-var list = $.ul(
-    $.filterData('tasks'),
-    $.each(
-        $.li(
-            $.h2($.filterData('name'), $.textContent()),
-            $.h3($.filterData('assignee'), $.textContent()),
-            $.strong($.filterData('done'), $.textContent())
-        )
-    )
-);
-
-var appConstruct = $.div(
-    $.input($.id('taskName')),
-    $.button($.id('addTask')),
-    $.h1($.a(
-        $.textContent($.filterData('title.name')),
-        $.href($.filterData('title.link'))
-    )),
-    list
-);
-
-window.a = appConstruct;
-appConstruct.render(dom.main, project);
+}).call(this,require("VCmEsw"),typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer,arguments[3],arguments[4],arguments[5],arguments[6],"/main.js","/")
+},{"./dom":17,"./model":20,"./selectors":21,"VCmEsw":4,"buffer":1,"immutable":5}],20:[function(require,module,exports){
+(function (process,global,Buffer,__argument0,__argument1,__argument2,__argument3,__filename,__dirname){
+var u = require('./util');
+var Immutable = require('immutable');
+window.u = u;
 
 window.i = Immutable;
 
-}).call(this,require("VCmEsw"),typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer,arguments[3],arguments[4],arguments[5],arguments[6],"/main.js","/")
-},{"./dom":17,"./selectors":20,"VCmEsw":4,"buffer":1,"immutable":5}],20:[function(require,module,exports){
+var Model = function(obj){
+    this._state = Immutable.fromJS(obj);
+    this._notificationQueue = [];
+    this._subscribers = {};
+};
+
+Model.prototype.subscribe = function(){
+};
+
+var diffModel = function(model){
+};
+
+
+var keyValue = function(val, key){
+    return val;
+};
+
+var oldObject = Immutable.fromJS({a: 1, b: 2, c: 3});
+var newObject = Immutable.fromJS({a: 2, b: 2, d: 4});
+
+var diffObjects = function(oldObject, newObject, path){
+    oldObject.forEach(function(oldVal, oldKey){
+        // Are all values of oldObject contained within newObject?
+        // If not then we'll need to issue a remove notification
+        // Here We need to differentiate between object and array
+
+        // If we encounter an array-like structure like Vector or sequence,
+        // we assume that if the value is still contained, but the key
+        // doesn't exist on the object, it has moved
+        if(newObject instanceof Immutable.Vector &&
+            !newObject.has(oldKey) &&
+            newObject.contains(oldValue)){
+            console.log('moved index');
+
+        // On the other hand, if the key doesn't exist on the object 
+        // and we're encountering a Map as newObject, we assume that
+        // it has been deleted.
+        }else if(newObject instanceof Immutable.Map &&
+            !newObject.has(oldKey)){
+            console.log('removed', ', key -> ', oldKey, ', val -> ', oldVal);
+
+        // Something updated in newObject??
+        }else if(newObject.has(oldKey) && !newObject.contains(oldVal)){
+            if(u.isNumberOrString(oldVal) || u.isNumberOrString(newObject.get(oldKey))){
+                console.log('update', ', key -> ', oldKey, ', to val -> ', newObject.get(oldKey));
+            }
+        }
+    });
+
+    newObject.forEach(function(oldVal, oldKey){
+        //Check if a property has been added
+        if(!oldObject.has(oldKey)){
+
+        }
+    });
+};
+
+diffObjects(oldObject, newObject);
+console.log(oldObject.toJS(), newObject.toJS());
+
+Model.prototype.update = function(ref, func){
+    this.oldState = this._state;
+    var self = this;
+
+    // Throw error when user is trying to use update like set
+    if(u.isString(ref) && !this.oldState.has(ref)){
+        u.refError(ref);
+    }
+
+    // If an object gets passed create a function that returns 
+    // the object for the updateIn callback
+    if(!u.isFunction(func)){
+        var obj = func;
+
+        if(!u.isString(obj) && !u.isNumber(obj)){
+            obj = Immutable.fromJS(obj);
+        }
+
+        func = function(){
+            return obj;
+        };
+    }
+
+    this._state = this.oldState.updateIn(ref, func);
+    this.notify(ref, 'update');
+    return this;
+};
+
+Model.prototype.set = function(ref, obj){
+    if(this._state.has(ref) || u.isArray(ref)){
+        return this.update(ref, obj);
+    }
+    this._oldState = this._state;
+    this._state = this._state.set(ref, obj);
+    this.notify(ref, 'create');
+};
+
+Model.prototype.delete = function(ref){
+    if(u.isArray(ref) && ref.length  === 1){
+        ref = ref[0];
+    }
+
+    if(u.isString(ref)){
+        this._oldSatate = this._state;
+        this._state = this._state.delete(ref);
+        this.notify(ref, 'delete');
+
+    }else if (u.isArray(ref)){
+        this._oldState = this._state;
+        this._state = this._state.updateIn(ref.slice(0,ref.length-1), function(val){
+            val.delete(ref[ref.length-1]);
+        });
+        this.notify(ref, 'delete');
+    }
+};
+
+Model.prototype.notify = function(path, signal){
+    var ref = path.join('/');
+    var data;
+    if(signal !== 'delete'){
+        data = this._state.getIn(path);
+    }
+
+    if(this._subscribers[ref] && this._subscribers[ref].length > 0){
+        u.each(this._subscribers[ref], function(fn){
+            fn(signal, data);
+        });
+    }
+};
+
+Model.prototype.subscribe = function(path, callback){
+    if(u.isArray(path)){
+        path = path.join('/');
+    }
+    if(!this._subscribers[path]){
+        this._subscribers[path] = [];
+    }
+    this._subscribers[path].push(callback);
+};
+
+Model.prototype.bind = function(path){
+    var self = this;
+    return function(cb, init){
+        self.subscribe(path, cb);
+        if(u.isFunction(init)){
+            init(self._state.getIn(path));
+        }
+    };
+};
+
+
+module.exports = Model;
+
+
+
+}).call(this,require("VCmEsw"),typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer,arguments[3],arguments[4],arguments[5],arguments[6],"/model.js","/")
+},{"./util":22,"VCmEsw":4,"buffer":1,"immutable":5}],21:[function(require,module,exports){
 (function (process,global,Buffer,__argument0,__argument1,__argument2,__argument3,__filename,__dirname){
 var ids = document.querySelectorAll('[id]');
 var u = require('./util');
@@ -5745,7 +5927,7 @@ u.each(ids, function(el){
 module.exports = selectors;
 
 }).call(this,require("VCmEsw"),typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer,arguments[3],arguments[4],arguments[5],arguments[6],"/selectors.js","/")
-},{"./util":21,"VCmEsw":4,"buffer":1}],21:[function(require,module,exports){
+},{"./util":22,"VCmEsw":4,"buffer":1}],22:[function(require,module,exports){
 (function (process,global,Buffer,__argument0,__argument1,__argument2,__argument3,__filename,__dirname){
 module.exports = {
     toType: function(obj) {
@@ -5757,13 +5939,43 @@ module.exports = {
     },
 
     typeError: function(type){
-        this.error('Invalid Argument Type, should be ' +  type);
+        this.error('Invalid Argument Error: , should be ' +  type);
+    },
+
+    refError: function(msg){
+        this.error('Referrence Error: Object has no member of name ' + msg);
+    },
+
+    uuid: (function() {
+        function s4() {
+            return Math.floor((1 + Math.random()) * 0x10000)
+        .toString(16)
+        .substring(1);
+        }
+        return function() {
+            return s4() + s4() + '-' + s4() + '-' + s4() + '-' +
+        s4() + '-' + s4() + s4() + s4();
+        };
+    })(),
+
+    assertClass: function(obj, classObject){
+        if(!obj instanceof classObject){
+            this.typeError('ElementNode');
+        }
     },
 
     assertType: function(obj, type){
         if(!this.isType(obj, type)){
             this.typeError(type);
         }
+    },
+
+    isUndefined: function(obj){
+        return obj === undefined;
+    },
+
+    isNotUndefined: function(obj){
+        return obj !== undefined;
     },
 
     assertNotUndefined: function(obj){
@@ -5782,6 +5994,18 @@ module.exports = {
 
     isString: function(arg){
         return this.toType(arg) === 'string';
+    },
+
+    isNumberOrString: function(obj){
+        return this.isString(obj) || this.isNumber(obj);
+    },
+
+    isArray: function(arg){
+        return this.toType(arg) === 'array';
+    },
+
+    isNumber: function(arg){
+        return this.toType(arg) === 'number';
     },
 
     isNode: function(arg){

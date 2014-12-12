@@ -10,7 +10,8 @@
     "keycode": "~0.3.0",
     "immutable": "~2.0.3",
     "multimethod": "~0.1.0",
-    "literate-programming": "~0.8.1"
+    "literate-programming": "~0.8.1",
+    "deep-diff": "~0.1.7"
   },
   "devDependencies": {
     "gulp": "~3.6.2",
